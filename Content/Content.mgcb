@@ -1,0 +1,13 @@
+#----------------------------- Global Properties ----------------------------#
+/outputDir:bin/$(Platform)
+/intermediateDir:obj/$(Platform)
+/platform:DesktopGL
+/config:
+/profile:Reach
+/compress:False
+
+#-------------------------------- References --------------------------------#
+
+#---------------------------------- Content ---------------------------------#
+# All textures and meshes are generated procedurally at runtime.
+# No content files are needed for this project.
