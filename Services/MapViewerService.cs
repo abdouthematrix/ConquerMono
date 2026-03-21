@@ -101,8 +101,8 @@ public sealed class MapViewerService : IDisposable
         var t = Camera.TransformMatrix;
         DrawLayer(sb, t, DrawingAspect.Backdrop);
         DrawLayer(sb, t, DrawingAspect.Puzzle);
-        DrawLayer(sb, t, DrawingAspect.Scene);
         DrawLayer(sb, t, DrawingAspect.TerrainObject);
+        DrawLayer(sb, t, DrawingAspect.Scene);        
         DrawLayer(sb, t, DrawingAspect.Portals);
         DrawLayer(sb, t, DrawingAspect.Effect);
         DrawLayer(sb, t, DrawingAspect.Sound);

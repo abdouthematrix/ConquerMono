@@ -3,8 +3,6 @@ using ConquerMono.Infrastructure.FileLoaders;
 using ConquerMono.Infrastructure.FileSystem;
 using ConquerMono.Infrastructure.Repositories;
 using ConquerMono.World;
-using System.IO;
-using System.Runtime;
 
 namespace ConquerMono;
 
@@ -32,20 +30,20 @@ public sealed class ConquerGame : Game
 {
     // ── MonoGame core ─────────────────────────────────────────────────────────
     private readonly GraphicsDeviceManager _gfx;
-    public  SpriteBatch SpriteBatch { get; private set; } = null!;
+    public SpriteBatch SpriteBatch { get; private set; } = null!;
 
     // ── Services (available to components via the game reference) ─────────────
-    public GameSettings         Settings   { get; private set; } = null!;
-    public InputManager         Input      { get; private set; } = null!;
-    public PlayerEntity?        Player     { get; private set; }
-    public MapViewerService?    MapViewer  { get; private set; }
-    public GameMapRepository?   MapRepo    { get; private set; }
+    public GameSettings Settings { get; private set; } = null!;
+    public InputManager Input { get; private set; } = null!;
+    public PlayerEntity? Player { get; private set; }
+    public MapViewerService? MapViewer { get; private set; }
+    public GameMapRepository? MapRepo { get; private set; }
 
     /// <summary>The currently-loaded <see cref="MapData"/> (null until a map is loaded).</summary>
     public MapData? CurrentMapData { get; private set; }
 
     // ── Private infrastructure ────────────────────────────────────────────────
-    private TqPackageReader?   _pkg;
+    private TqPackageReader? _pkg;
     private MapLoadingService? _mapLoadingService;
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -53,12 +51,12 @@ public sealed class ConquerGame : Game
     {
         _gfx = new GraphicsDeviceManager(this)
         {
-            PreferredBackBufferWidth  = 1280,
+            PreferredBackBufferWidth = 1280,
             PreferredBackBufferHeight = 720,
             SynchronizeWithVerticalRetrace = true,
         };
         Content.RootDirectory = "Content";
-        IsMouseVisible  = true;
+        IsMouseVisible = true;
         IsFixedTimeStep = true;
         TargetElapsedTime = TimeSpan.FromSeconds(1.0 / 60.0);
     }
@@ -70,22 +68,38 @@ public sealed class ConquerGame : Game
 
         // ── Settings ──────────────────────────────────────────────────────────
         Settings = GameSettings.Load();
-        Input    = new InputManager();
+        Input = new InputManager();
 
         if (!Settings.IsValid())
         {
             var directory = @"C:\Users\AbdouMatrix\Downloads\CO\6090";
             Settings.ConquerDirectory = directory;
             Settings.GameMapFilePath = Path.Combine(directory, "ini", "gamemap.dat");
+
+            // ── Player C3 model ────────────────────────────────────────────────
+            Settings.PlayerModelPath = @"C:\Users\AbdouMatrix\Desktop\C3\mesh\001000000.c3";
+            Settings.PlayerTexturePath = string.Empty;
+            Settings.PlayerModelScale = 0.025f;
+
+            // Per-state motion files
+            Settings.PlayerIdleMotionPath = @"C:\Users\AbdouMatrix\Desktop\C3\mesh\100.c3";
+            Settings.PlayerWalkMotionPath = @"C:\Users\AbdouMatrix\Desktop\C3\mesh\110.c3";
+            Settings.PlayerRunMotionPath = @"C:\Users\AbdouMatrix\Desktop\C3\mesh\120.c3";
+            Settings.PlayerJumpMotionPath = @"C:\Users\AbdouMatrix\Desktop\C3\mesh\130.c3";
+
+            // Movement speeds
+            Settings.PlayerWalkSpeed = 5f;
+            Settings.PlayerRunSpeed = 10f;
+            Settings.Save();
         }
 
         // ── Infrastructure (only if Conquer directory is configured) ──────────
         if (Settings.IsValid())
         {
             _pkg = new TqPackageReader(Settings.ConquerDirectory);
-            var mapLoader    = new MapFileLoader();
+            var mapLoader = new MapFileLoader();
             var puzzleLoader = new PuzzleFileLoader(Settings.ConquerDirectory);
-            MapRepo          = new GameMapRepository(Settings.GameMapFilePath);
+            MapRepo = new GameMapRepository(Settings.GameMapFilePath);
             _mapLoadingService = new MapLoadingService(_pkg, mapLoader, puzzleLoader);
             // MapViewerService requires GraphicsDevice — deferred to LoadContent
         }
@@ -110,7 +124,7 @@ public sealed class ConquerGame : Game
             return;
         }
 
-        var ani         = new AniDictionary(Settings.ConquerDirectory);
+        var ani = new AniDictionary(Settings.ConquerDirectory);
         var sceneLoader = new SceneFileLoader();
 
         MapViewer = new MapViewerService(
@@ -204,17 +218,17 @@ public sealed class ConquerGame : Game
         int cx = (int)centre.X, cy = (int)centre.Y;
 
         for (int r = 0; r <= 20; r++)
-        for (int dx = -r; dx <= r; dx++)
-        for (int dy = -r; dy <= r; dy++)
-        {
-            // Only test the perimeter of each radius ring
-            if (Math.Abs(dx) != r && Math.Abs(dy) != r) continue;
-            int tx = cx + dx, ty = cy + dy;
-            if (tx >= 0 && tx < map.Cells.CollectionSize.Width &&
-                ty >= 0 && ty < map.Cells.CollectionSize.Height &&
-                map.Cells[tx, ty].IsWalkable)
-                return new Vector2(tx, ty);
-        }
+            for (int dx = -r; dx <= r; dx++)
+                for (int dy = -r; dy <= r; dy++)
+                {
+                    // Only test the perimeter of each radius ring
+                    if (Math.Abs(dx) != r && Math.Abs(dy) != r) continue;
+                    int tx = cx + dx, ty = cy + dy;
+                    if (tx >= 0 && tx < map.Cells.CollectionSize.Width &&
+                        ty >= 0 && ty < map.Cells.CollectionSize.Height &&
+                        map.Cells[tx, ty].IsWalkable)
+                        return new Vector2(tx, ty);
+                }
         return centre;
     }
 

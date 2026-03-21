@@ -8,9 +8,9 @@ namespace ConquerMono.Components;
 public sealed class HudComponent : DrawableGameComponent
 {
     private readonly ConquerGame _game;
-    private Texture2D _px = null!;   // 1×1 white
+    private Texture2D _px      = null!;   // 1×1 white
     private Texture2D _minimap = null!;
-    private string _lastMinimapMapPath = string.Empty;
+    private string    _lastMinimapMapPath = string.Empty;
 
     // ── Pixel digit bitmaps (5w × 7h, bit 4 = leftmost pixel) ────────────────
     private static readonly byte[][] Digits =
@@ -55,27 +55,27 @@ public sealed class HudComponent : DrawableGameComponent
                 cam.PanByPixels(input.MouseDelta);
 
             // Zoom shortcuts: +/-
-            if (input.IsPressed(Keys.OemPlus) || input.IsPressed(Keys.Add)) cam.Zoom *= 1.2f;
+            if (input.IsPressed(Keys.OemPlus)  || input.IsPressed(Keys.Add))      cam.Zoom *= 1.2f;
             if (input.IsPressed(Keys.OemMinus) || input.IsPressed(Keys.Subtract)) cam.Zoom /= 1.2f;
 
             // View shortcuts
             if (input.IsPressed(Keys.Home) || input.IsPressed(Keys.H)) cam.ResetView();
-            if (input.IsPressed(Keys.F)) cam.FitToWindow();
+            if (input.IsPressed(Keys.F))                                cam.FitToWindow();
         }
 
         // ── Layer toggles ─────────────────────────────────────────────────────
         var mv = _game.MapViewer;
         if (mv != null)
         {
-            if (input.IsPressed(Keys.D1)) mv.SetLayerEnabled(DrawingAspect.Backdrop, !mv.IsLayerEnabled(DrawingAspect.Backdrop));
-            if (input.IsPressed(Keys.D2)) mv.SetLayerEnabled(DrawingAspect.Puzzle, !mv.IsLayerEnabled(DrawingAspect.Puzzle));
-            if (input.IsPressed(Keys.D3)) mv.SetLayerEnabled(DrawingAspect.Scene, !mv.IsLayerEnabled(DrawingAspect.Scene));
-            if (input.IsPressed(Keys.D4)) mv.SetLayerEnabled(DrawingAspect.TerrainObject, !mv.IsLayerEnabled(DrawingAspect.TerrainObject));
-            if (input.IsPressed(Keys.D5)) mv.SetLayerEnabled(DrawingAspect.Portals, !mv.IsLayerEnabled(DrawingAspect.Portals));
-            if (input.IsPressed(Keys.D6)) mv.SetLayerEnabled(DrawingAspect.MapCell, !mv.IsLayerEnabled(DrawingAspect.MapCell));
-            if (input.IsPressed(Keys.D7)) mv.SetLayerEnabled(DrawingAspect.PuzzleGrid, !mv.IsLayerEnabled(DrawingAspect.PuzzleGrid));
-            if (input.IsPressed(Keys.D8)) mv.SetLayerEnabled(DrawingAspect.TerrainObjectGrid, !mv.IsLayerEnabled(DrawingAspect.TerrainObjectGrid));
-            if (input.IsPressed(Keys.D9)) mv.SetLayerEnabled(DrawingAspect.SceneGrid, !mv.IsLayerEnabled(DrawingAspect.SceneGrid));
+            if (input.IsPressed(Keys.D1)) mv.SetLayerEnabled(DrawingAspect.Backdrop,          !mv.IsLayerEnabled(DrawingAspect.Backdrop));
+            if (input.IsPressed(Keys.D2)) mv.SetLayerEnabled(DrawingAspect.Puzzle,             !mv.IsLayerEnabled(DrawingAspect.Puzzle));
+            if (input.IsPressed(Keys.D3)) mv.SetLayerEnabled(DrawingAspect.Scene,              !mv.IsLayerEnabled(DrawingAspect.Scene));
+            if (input.IsPressed(Keys.D4)) mv.SetLayerEnabled(DrawingAspect.TerrainObject,      !mv.IsLayerEnabled(DrawingAspect.TerrainObject));
+            if (input.IsPressed(Keys.D5)) mv.SetLayerEnabled(DrawingAspect.Portals,            !mv.IsLayerEnabled(DrawingAspect.Portals));
+            if (input.IsPressed(Keys.D6)) mv.SetLayerEnabled(DrawingAspect.MapCell,            !mv.IsLayerEnabled(DrawingAspect.MapCell));
+            if (input.IsPressed(Keys.D7)) mv.SetLayerEnabled(DrawingAspect.PuzzleGrid,         !mv.IsLayerEnabled(DrawingAspect.PuzzleGrid));
+            if (input.IsPressed(Keys.D8)) mv.SetLayerEnabled(DrawingAspect.TerrainObjectGrid,  !mv.IsLayerEnabled(DrawingAspect.TerrainObjectGrid));
+            if (input.IsPressed(Keys.D9)) mv.SetLayerEnabled(DrawingAspect.SceneGrid,          !mv.IsLayerEnabled(DrawingAspect.SceneGrid));
         }
 
         // Rebuild minimap whenever a new map is loaded
@@ -108,7 +108,7 @@ public sealed class HudComponent : DrawableGameComponent
     // ── Character panel ───────────────────────────────────────────────────────
     private void DrawCharPanel(SpriteBatch sb, int sh)
     {
-        var p = _game.Player;
+        var p   = _game.Player;
         if (p == null) return;
         const int PX = 12, H = 120;
         int py = sh - H - 12;
@@ -153,12 +153,12 @@ public sealed class HudComponent : DrawableGameComponent
         sb.Draw(_minimap, new Rectangle(mx, my, MM, MM), Color.White);
 
         var mv = _game.MapViewer;
-        var p = _game.Player;
+        var p  = _game.Player;
         if (mv == null || p == null || !mv.IsMapLoaded) return;
 
         // Player dot — position in cell space normalised to map bounds
         var mapData = _game.CurrentMapData;
-        int mapW = mapData?.Bounds.Width ?? 1;
+        int mapW = mapData?.Bounds.Width  ?? 1;
         int mapH = mapData?.Bounds.Height ?? 1;
         int px2 = mx + (int)(p.CellPosition.X / mapW * MM);
         int py2 = my + (int)(p.CellPosition.Y / mapH * MM);
@@ -204,14 +204,14 @@ public sealed class HudComponent : DrawableGameComponent
         for (int i = 0; i < keys.Length; i++)
         {
             bool on = mv?.IsLayerEnabled(keys[i].Item2) ?? false;
-            var c = on ? new Color(80, 220, 80) : new Color(150, 80, 80);
+            var  c  = on ? new Color(80, 220, 80) : new Color(150, 80, 80);
             Fill(sb, hx + 6, hy + 8 + i * 15, 8, 8, c);
             // Draw key label as a coloured stripe
             Fill(sb, hx + 18, hy + 10 + i * 15, 90, 4, new Color(160, 150, 100, 180));
         }
 
         // WASD / arrows reminder
-        Fill(sb, hx + 120, hy + 8, 40, 10, new Color(100, 100, 80, 120));
+        Fill(sb, hx + 120, hy + 8,  40, 10, new Color(100, 100, 80, 120));
         Fill(sb, hx + 120, hy + 20, 40, 10, new Color(100, 100, 80, 120));
     }
 
@@ -228,20 +228,20 @@ public sealed class HudComponent : DrawableGameComponent
         int w = mapData.Bounds.Width, h = mapData.Bounds.Height;
         var px = new Color[w * h];
         for (int y = 0; y < h; y++)
-            for (int x = 0; x < w; x++)
+        for (int x = 0; x < w; x++)
+        {
+            px[y * w + x] = mapData.Cells[x, y].Access switch
             {
-                px[y * w + x] = mapData.Cells[x, y].Access switch
-                {
-                    MapCellAccessType.Walkable => new Color(50, 120, 40),
-                    MapCellAccessType.Blocked => new Color(80, 30, 30),
-                    MapCellAccessType.Portal => new Color(255, 220, 0),
-                    MapCellAccessType.Scene => new Color(38, 82, 185),
-                    MapCellAccessType.Terrain => new Color(38, 185, 185),
-                    MapCellAccessType.Effect => new Color(210, 120, 20),
-                    MapCellAccessType.Sound => new Color(140, 20, 200),
-                    _ => Color.DimGray,
-                };
-            }
+                MapCellAccessType.Walkable => new Color(50, 120, 40),
+                MapCellAccessType.Blocked  => new Color(80, 30, 30),
+                MapCellAccessType.Portal   => new Color(255, 220, 0),
+                MapCellAccessType.Scene    => new Color(38, 82, 185),
+                MapCellAccessType.Terrain  => new Color(38, 185, 185),
+                MapCellAccessType.Effect   => new Color(210, 120, 20),
+                MapCellAccessType.Sound    => new Color(140, 20, 200),
+                _                          => Color.DimGray,
+            };
+        }
         _minimap?.Dispose();
         _minimap = new Texture2D(GraphicsDevice, w, h);
         _minimap.SetData(px);
@@ -260,10 +260,10 @@ public sealed class HudComponent : DrawableGameComponent
 
     private void Border(SpriteBatch sb, int x, int y, int w, int h, Color c)
     {
-        Fill(sb, x, y, w, 2, c);
-        Fill(sb, x, y + h - 2, w, 2, c);
-        Fill(sb, x, y, 2, h, c);
-        Fill(sb, x + w - 2, y, 2, h, c);
+        Fill(sb, x,       y,       w, 2, c);
+        Fill(sb, x,       y+h-2,   w, 2, c);
+        Fill(sb, x,       y,       2, h, c);
+        Fill(sb, x+w-2,   y,       2, h, c);
     }
 
     private void Bar(SpriteBatch sb, int x, int y, int w, int h,

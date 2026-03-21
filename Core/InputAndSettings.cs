@@ -56,6 +56,43 @@ public sealed class GameSettings
     public float DefaultZoom { get; set; } = 0.5f;
     public string LastMapPath { get; set; } = string.Empty;
 
+    // ── Player 3-D model (C3 format) ──────────────────────────────────────
+    /// <summary>Absolute path to the player's .c3 model file. Empty = use procedural mesh.</summary>
+    public string PlayerModelPath { get; set; } = string.Empty;
+    /// <summary>Explicit texture override. Empty = use texture embedded in the .c3 file.</summary>
+    public string PlayerTexturePath { get; set; } = string.Empty;
+    /// <summary>Uniform scale applied to the player's World matrix. Default 1.0.</summary>
+    public float PlayerModelScale { get; set; } = 1.0f;
+
+    // ── Per-state motion files (each is a separate .c3 or empty = skip) ────
+    public string PlayerIdleMotionPath { get; set; } = string.Empty;
+    public string PlayerWalkMotionPath { get; set; } = string.Empty;
+    public string PlayerRunMotionPath { get; set; } = string.Empty;
+    public string PlayerJumpMotionPath { get; set; } = string.Empty;
+
+    // ── Movement tuning ────────────────────────────────────────────────────
+    /// <summary>Walk speed in cells per second.</summary>
+    public float PlayerWalkSpeed { get; set; } = 5f;
+    /// <summary>Run speed in cells per second (hold Shift).</summary>
+    public float PlayerRunSpeed { get; set; } = 10f;
+
+    // ── Convenience ────────────────────────────────────────────────────────
+    /// <summary>
+    /// Set all player motion paths at once from a model directory using standard
+    /// Conquer Online action IDs (e.g. idle=100, walk=110, run=120, jump=130).
+    /// </summary>
+    public void SetPlayerMotionsFromDirectory(string dir,
+        int idleAction = C3Format.C3Actions.Standby,
+        int walkAction = C3Format.C3Actions.WalkL,
+        int runAction = C3Format.C3Actions.RunL,
+        int jumpAction = C3Format.C3Actions.Jump)
+    {
+        PlayerIdleMotionPath = C3Format.C3Actions.ToPath(dir, idleAction);
+        PlayerWalkMotionPath = C3Format.C3Actions.ToPath(dir, walkAction);
+        PlayerRunMotionPath = C3Format.C3Actions.ToPath(dir, runAction);
+        PlayerJumpMotionPath = C3Format.C3Actions.ToPath(dir, jumpAction);
+    }
+
     // ── File I/O ──────────────────────────────────────────────────────────────
 
     private static string SettingsPath
