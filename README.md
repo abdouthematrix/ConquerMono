@@ -1,21 +1,38 @@
-# ConquerMono — 2.5D Isometric Action RPG
+# ConquerMono  ·  2.5D Isometric Action RPG
 
-A MonoGame prototype inspired by *Conquer Online*, featuring:
-
-- **Isometric tile map** rendered in 2D via `SpriteBatch` (painter's algorithm)
-- **3D player mesh** rendered with `BasicEffect` + `VertexPositionColor`, composited over the 2D scene
-- **Unified camera** — one set of maths drives both the 2D tile offset and the matching 3D View/Projection matrices
-- **Zero external assets** — all textures and meshes are generated procedurally at startup
-- **Modular `DrawableGameComponent` architecture** — each system is self-contained
+A MonoGame project that loads and renders **real Conquer Online maps** (`.dmap` + WDF packages)
+while displaying the player as a **3-D humanoid mesh** composited over the authentic 2-D tile map.
 
 ---
 
 ## Requirements
 
-| Tool | Version |
-|------|---------|
+| Dependency | Version |
+|---|---|
 | .NET SDK | 8.0+ |
-| MonoGame | 3.8.1 (pulled from NuGet automatically) |
+| MonoGame | 3.8.1 (pulled via NuGet) |
+| Conquer Online client | Any version with `c3.wdf` / `data.wdf` and `ini/gamemap.dat` |
+
+---
+
+## First-run setup
+
+On first launch (or whenever `%AppData%\ConquerMono\settings.json` is missing)
+the game will display a setup message in the window title.
+
+Edit `%AppData%\ConquerMono\settings.json`:
+
+```json
+{
+  "ConquerDirectory": "C:\\Games\\Conquer",
+  "GameMapFilePath":  "C:\\Games\\Conquer\\ini\\gamemap.dat",
+  "DefaultMapId": 1006,
+  "DefaultZoom": 0.5,
+  "LastMapPath": ""
+}
+```
+
+Then run again — the default map (ID 1006 = Twin City) will load automatically.
 
 ---
 
@@ -26,91 +43,158 @@ cd ConquerMono
 dotnet run
 ```
 
-Controls: **WASD** or **Arrow Keys** to move · **Escape** to quit
+---
+
+## Controls
+
+| Input | Action |
+|---|---|
+| W / A / S / D | Move player |
+| Right-drag mouse | Pan camera |
+| Scroll wheel | Zoom in / out |
+| H or Home | Reset camera view |
+| F | Fit map to window |
+| Shift + Arrow | Fast camera pan |
+| 1 – 8 | Toggle rendering layers |
+| Escape | Quit |
+
+### Layer toggles (number keys)
+
+| Key | Layer |
+|---|---|
+| 1 | Backdrop |
+| 2 | Puzzle (ground tiles) |
+| 3 | Scenes (animated objects from .scene files) |
+| 4 | Terrain objects |
+| 5 | Portals |
+| 6 | Cell access debug overlay |
+| 7 | Puzzle tile grid overlay |
+| 8 | Terrain object bounding grid |
 
 ---
 
 ## Architecture
 
 ```
-ConquerGame          Root game — owns shared resources (SpriteBatch, Camera, Map, Player, Input)
+ConquerMono/
+│
+├── Domain/                         Pure data models (no MonoGame dependency)
+│   ├── MapData, MapCell, MapCellCollection, Puzzle, …
+│   └── Entities.cs                 MapPortal, MapScene, MapTerrainObject, …
+│
+├── Interfaces/                     Contracts (IPackageReader, IAniDictionary, …)
+│
+├── Infrastructure/
+│   ├── Animation/                  AniParser, AnimationIndex, AniDictionary
+│   ├── FileLoaders/                MapFileLoader, PuzzleFileLoader, SceneFileLoader
+│   ├── FileSystem/                 WdfPackageReader, TqPackageReader
+│   ├── Graphics/                   DDSHelper, TGAHelper, TextureCache
+│   └── Repositories/               GameMapRepository (gamemap.dat index)
+│
+├── Rendering/
+│   ├── Coordinates/                IsometricCoordinateSystem (cell ↔ pixel)
+│   ├── Drawing/                    All IDrawingComponent implementations
+│   │   ├── BaseDrawingComponent
+│   │   ├── PuzzleDrawingComponent
+│   │   ├── BackdropDrawingComponent
+│   │   ├── ObjectDrawingComponents  (Portal, Scene, TerrainObject)
+│   │   └── DebugDrawingComponents   (MapCell, grids, Effect, Sound)
+│   └── Primitives/                 CellVertexBuilder (DynamicVertexBuffer lines)
+│
+├── Services/
+│   ├── MapLoadingService           Loads .dmap + puzzles + backdrops
+│   └── MapViewerService            Owns all IDrawingComponent lists + GameCamera
 │
 ├── Core/
-│   ├── IsometricCamera   Converts tile↔screen (2D) and provides View/Projection (3D)
-│   └── InputManager      Per-frame keyboard edge detection
+│   ├── GameCamera                  Unified 2D scroll + 3D View/Projection matrices
+│   └── InputAndSettings.cs         InputManager + GameSettings (JSON)
 │
 ├── World/
-│   ├── GameMap           50×50 tile grid; procedural terrain via layered sine waves
-│   ├── PlayerEntity      Position, stats, movement with axis-sliding collision
-│   └── TileType          Grass | Road | Water | Stone | Sand
+│   └── PlayerEntity                Cell-space position, stats, WASD movement
 │
-└── Components/           DrawableGameComponent subclasses (drawn in DrawOrder order)
-    ├── MapComponent       DrawOrder=0   SpriteBatch pass — isometric tiles
-    ├── PlayerComponent    DrawOrder=10  Shadow (SpriteBatch) + 3D humanoid mesh (BasicEffect)
-    └── HudComponent       DrawOrder=20  SpriteBatch pass — bars, minimap, pixel digits
-```
-
----
-
-## Camera Mathematics
-
-The 2D tile→screen formula (tile half-width = 32, half-height = 16):
-
-```
-screen.X = (tx − ty) × 32 + offsetX
-screen.Y = (tx + ty) × 16 + offsetY
-```
-
-For the 3D camera to produce the same screen position for a mesh at world `(tx, 0, tz)`,
-an orthographic camera placed at eye `(d, d·√(2/3), d)` relative to the target satisfies
-the 2∶1 tile ratio exactly. The projection scales so that:
-
-```
-1 world unit  ≡  TileHalfW × √2  ≈  45.25 pixels
-```
-
----
-
-## Draw Pipeline (each frame)
-
-```
-GraphicsDevice.Clear(background)
+├── Components/                     DrawableGameComponent wrappers (MonoGame lifecycle)
+│   ├── MapRenderComponent  [0]
+│   ├── PlayerComponent    [10]
+│   └── HudComponent       [20]
 │
-├── MapComponent.Draw          SpriteBatch.Begin … tile quads … End
-├── PlayerComponent.Draw
-│   ├── SpriteBatch.Begin … blob shadow … End
-│   ├── GraphicsDevice.Clear(DepthBuffer only)
-│   └── BasicEffect … indexed box mesh …
-└── HudComponent.Draw          SpriteBatch.Begin … bars, minimap, digits … End
+└── ConquerGame.cs                  Root — wires everything together
 ```
 
 ---
 
-## Extending the Game
+## Coordinate systems
+
+```
+Cell space          integer (x, y) indices into MapCellCollection
+       ↕  IsometricCoordinateSystem.MapToScreen / ScreenToMap
+Puzzle space        pixel (x, y) within the full puzzle image
+       ↕  GameCamera.TransformMatrix   (scale + scroll offset)
+Viewport space      pixel (x, y) on screen
+
+3-D world space     (cellX, 0, cellY) — directly equals cell space
+       ↕  GameCamera.ViewMatrix + ProjectionMatrix
+Clip space          fed to BasicEffect for the player mesh
+```
+
+The key invariant: `IsometricCoordinateSystem.MapToScreen(cell)` and the 3-D projection of
+`Vector3(cell.X, 0, cell.Y)` land on **the same viewport pixel**.  
+This is guaranteed by calibrating the orthographic projection to `PixelsPerUnit = TileHalfW × √2`.
+
+---
+
+## Extending
+
+### Load a different map at runtime
+
+```csharp
+var map = game.MapRepo?.GetById(1038); // Market
+if (map != null) game.LoadMap(map);
+```
+
+### Add a new rendering layer
+
+1. Implement `BaseDrawingComponent` in `Rendering/Drawing/`.
+2. Add a value to the `DrawingAspect` enum in `Domain/Entities.cs`.
+3. Register the component inside `MapViewerService.BuildComponents()`.
+4. Add a toggle call in `HudComponent.Update()`.
 
 ### Replace the procedural player mesh with a real model
 
+In `PlayerComponent.LoadContent()`, replace `BuildMesh()` with:
+
 ```csharp
-// In PlayerComponent.LoadContent():
 _model = Game.Content.Load<Model>("Characters/Warrior");
 ```
 
-Add the `.fbx` (or `.x`) to `Content/Characters/Warrior.fbx` and reference it in `Content.mgcb`.
+Add `Characters/Warrior.fbx` to `Content/` and reference it in `Content.mgcb`.
+In `Draw()`, call `_model.Draw(_effect.World, cam.ViewMatrix, cam.ProjectionMatrix)`.
 
-### Add animated sprites for NPC enemies
+### Enable sound playback
 
-Create an `NpcComponent : DrawableGameComponent` that holds a `Texture2D` sprite sheet,
-increments a frame counter in `Update`, and draws the current frame via `SpriteBatch`.
-Use the same `IsometricCamera.TileToScreen()` helper to place each NPC.
+`MapData.Sounds` already lists every ambient sound with path, volume, and range.
+Wire `Microsoft.Xna.Framework.Audio.SoundEffect` loading through `IPackageReader`
+and trigger playback when the player enters a sound's range circle.
 
-### Add more tile types
+---
 
-1. Add the enum value to `TileType`.
-2. Add a colour entry to `MapComponent._textures` dictionary.
-3. Update `GameMap.Generate()` to use the new type.
-4. Update `HudComponent.BuildMinimapTexture()` colour switch.
+## Audit changelog (applied during review passes)
 
-### Add elevation / height
+### Coordinate system
+- **`ScreenToMap` fixed** — was a simplified formula ignoring puzzle centre and map height offsets; replaced with exact algebraic inverse of `MapToScreen`
+- **`TransformMatrix` double-offset fixed** — was `Translate(-pos)×Scale(zoom)` but components already subtract `DrawWindow.X/Y`; corrected to `Scale(zoom)` only
 
-Offset the tile's screen Y by `−height * TileHalfH` and shift the 3D mesh's
-world Y accordingly. Both coordinate systems will remain in sync automatically.
+### Walkability
+- **`MapCell.IsWalkable` broadened** — changed from `== Walkable` to `!= Blocked` so portals, scenes, terrain markers, effects, and sounds are all passable by the player
+
+### Frame update ordering
+- **`MapRenderComponent.UpdateOrder` raised to 20** — `UpdateAllComponents` now runs after `PlayerComponent` (10) has moved the player and updated the camera, eliminating a one-frame cull lag
+
+### Camera tracking
+- **`GameCamera.TrackCell()`** — added method so the 3-D View matrix follows the player's cell each frame; the mesh now projects to the exact screen pixel as the 2-D tile shadow
+
+### Robustness
+- **`TileSize` fallback chain** — `0 → auto-detect → caller-supplied → 64` so maps always render even when `gamemap.dat` has no tile size
+- **Redundant `GraphicsDevice.Clear` removed** from `MapRenderComponent.Draw`
+- **`WalkPhase` and portal `_time`** clamped with `% Tau` / `% 600f` to prevent float precision loss
+- **`goto` replaced** with `FindSpawnCell()` helper in `ConquerGame.LoadMap`
+- **Arrow-key conflict resolved** — removed camera pan from arrow keys; player uses WASD+arrows exclusively, camera uses scroll wheel and right-drag

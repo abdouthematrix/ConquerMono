@@ -1,5 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
@@ -7,16 +6,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>ConquerMono</RootNamespace>
     <AssemblyName>ConquerMono</AssemblyName>
+    <Nullable>enable</Nullable>
   </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.1.303" />
-    <PackageReference Include="MonoGame.Content.Builder.Task"  Version="3.8.1.303" />
+    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.1.303" />
+    <PackageReference Include="SevenZipExtractor" Version="1.0.19" />
   </ItemGroup>
-
-  <!-- Content pipeline: only the font is needed; everything else is procedural -->
   <ItemGroup>
     <MonoGameContentReference Include="Content\Content.mgcb" />
   </ItemGroup>
-
 </Project>

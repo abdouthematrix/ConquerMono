@@ -9,5 +9,6 @@
 #-------------------------------- References --------------------------------#
 
 #---------------------------------- Content ---------------------------------#
-# All textures and meshes are generated procedurally at runtime.
-# No content files are needed for this project.
+# All textures are loaded at runtime from Conquer Online WDF packages
+# (c3.wdf, data.wdf) via TqPackageReader / WdfPackageReader.
+# No content files need to be compiled by the pipeline.
