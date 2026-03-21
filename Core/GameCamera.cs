@@ -21,21 +21,21 @@ public sealed class GameCamera
     // ── Constants ─────────────────────────────────────────────────────────────
     public const float PixelsPerUnit = 45.25f;  // TileHalfW(32) × √2
 
-    private const float DEFAULT_ZOOM  = 0.5f;
-    private const float MAX_ZOOM      = 5.0f;
+    private const float DEFAULT_ZOOM = 0.5f;
+    private const float MAX_ZOOM = 5.0f;
 
     // ── State ─────────────────────────────────────────────────────────────────
     private readonly GraphicsDevice _gd;
-    private Puzzle?  _puzzle;
+    private Puzzle? _puzzle;
 
     private Vector2 _position = Vector2.Zero;
-    private float   _zoom     = DEFAULT_ZOOM;
+    private float _zoom = DEFAULT_ZOOM;
 
     // ── Public read-only properties ───────────────────────────────────────────
-    public Rectangle DrawWindow      { get; private set; }
-    public Matrix    TransformMatrix { get; private set; } = Matrix.Identity;
-    public Matrix    ViewMatrix      { get; private set; } = Matrix.Identity;
-    public Matrix    ProjectionMatrix{ get; private set; } = Matrix.Identity;
+    public Rectangle DrawWindow { get; private set; }
+    public Matrix TransformMatrix { get; private set; } = Matrix.Identity;
+    public Matrix ViewMatrix { get; private set; } = Matrix.Identity;
+    public Matrix ProjectionMatrix { get; private set; } = Matrix.Identity;
 
     public IsometricCoordinateSystem? CoordSystem { get; private set; }
 
@@ -47,10 +47,10 @@ public sealed class GameCamera
     /// <summary>Call once after a new map is loaded.</summary>
     public void Attach(Puzzle puzzle, IsometricCoordinateSystem coords)
     {
-        _puzzle     = puzzle;
+        _puzzle = puzzle;
         CoordSystem = coords;
-        _zoom       = DEFAULT_ZOOM;
-        _position   = new Vector2(puzzle.Width / 4f, puzzle.Height / 4f);
+        _zoom = DEFAULT_ZOOM;
+        _position = new Vector2(puzzle.Width / 4f, puzzle.Height / 4f);
         Recalculate();
     }
 
@@ -100,7 +100,7 @@ public sealed class GameCamera
     public void ResetView()
     {
         if (_puzzle == null) return;
-        _zoom     = DEFAULT_ZOOM;
+        _zoom = DEFAULT_ZOOM;
         _position = new Vector2(_puzzle.Width / 4f, _puzzle.Height / 4f);
         Recalculate();
     }
@@ -109,7 +109,7 @@ public sealed class GameCamera
     {
         if (_puzzle == null) return;
         var vp = _gd.Viewport;
-        Zoom     = Math.Min(vp.Width / (float)_puzzle.Width,
+        Zoom = Math.Min(vp.Width / (float)_puzzle.Width,
                             vp.Height / (float)_puzzle.Height) * 0.9f;
         Position = Vector2.Zero;
     }
@@ -136,7 +136,7 @@ public sealed class GameCamera
     {
         if (_puzzle == null) return;
 
-        var vp   = _gd.Viewport;
+        var vp = _gd.Viewport;
 
         // ── 2-D transform matrix ──────────────────────────────────────────────
         // Drawing components subtract DrawWindow.X/Y themselves when converting
@@ -145,20 +145,20 @@ public sealed class GameCamera
         TransformMatrix = Matrix.CreateScale(_zoom);
 
         // ── Draw window (puzzle-image pixels) ─────────────────────────────────
-        float ww = Math.Min(vp.Width  / _zoom, _puzzle.Width);
+        float ww = Math.Min(vp.Width / _zoom, _puzzle.Width);
         float wh = Math.Min(vp.Height / _zoom, _puzzle.Height);
         _position = ClampPos(_position);
 
         DrawWindow = new Rectangle(
             (int)_position.X, (int)_position.Y,
-            (int)ww,          (int)wh);
+            (int)ww, (int)wh);
 
         // ── 3-D matrices (must place mesh at puzzle-image pixel screenPos) ────
         // Projection is computed once per zoom change; View is recomputed each
         // frame by TrackCell() once the player position is known.
         const float D = 20f;
         float H = D * MathF.Sqrt(2f / 3f);
-        _viewEyeOffset  = new Vector3(D, H, D);
+        _viewEyeOffset = new Vector3(D, H, D);
 
         float orthoW = ww / PixelsPerUnit;
         float orthoH = wh / PixelsPerUnit;
@@ -186,14 +186,14 @@ public sealed class GameCamera
         if (_puzzle == null) return;
         var vp = _gd.Viewport;
 
-        float maxX = Math.Max(0, _puzzle.Width  - vp.Width  / _zoom);
+        float maxX = Math.Max(0, _puzzle.Width - vp.Width / _zoom);
         float maxY = Math.Max(0, _puzzle.Height - vp.Height / _zoom);
 
         // Map fits entirely on screen — nothing to scroll; keep position at 0,0.
         if (maxX <= 0 && maxY <= 0) return;
 
         Position = new Vector2(
-            puzzlePixel.X - vp.Width  / _zoom / 2f,
+            puzzlePixel.X - vp.Width / _zoom / 2f,
             puzzlePixel.Y - vp.Height / _zoom / 2f);
     }
 
@@ -207,7 +207,7 @@ public sealed class GameCamera
     {
         if (_puzzle == null) return v;
         var vp = _gd.Viewport;
-        float maxX = Math.Max(0, _puzzle.Width  - vp.Width  / _zoom);
+        float maxX = Math.Max(0, _puzzle.Width - vp.Width / _zoom);
         float maxY = Math.Max(0, _puzzle.Height - vp.Height / _zoom);
         return new Vector2(Math.Clamp(v.X, 0, maxX), Math.Clamp(v.Y, 0, maxY));
     }
