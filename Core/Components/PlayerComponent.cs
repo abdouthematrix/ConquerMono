@@ -42,12 +42,10 @@ public sealed class PlayerComponent : DrawableGameComponent
         // Base Body & Armor
         if (_currentAppearance == null || _currentAppearance.Look != appearance.Look || _currentAppearance.ArmorId != appearance.ArmorId)
         {
-            _role.BaseLookId = appearance.Look;
-            uint armorItemId = appearance.ArmorId != 0 ? appearance.ArmorId : (appearance.Look * 1_000_000);
+            uint armorItemId = (appearance.Look * 1_000_000) + appearance.ArmorId;
             SyncSlot("Armor", armorItemId, RolePartType.Armor);
             motionRefreshRequired = true;
         }
-
         // Weapons & Headgear
         if (_currentAppearance?.ArmetId != appearance.ArmetId)
         {
@@ -61,6 +59,11 @@ public sealed class PlayerComponent : DrawableGameComponent
         if (_currentAppearance?.LWeaponId != appearance.LWeaponId)
         {
             SyncSlot("LWeapon", appearance.LWeaponId, RolePartType.Weapon);
+            motionRefreshRequired = true;
+        }
+        if (_currentAppearance?.MountId != appearance.MountId)
+        {
+            SyncSlot("Mount", appearance.MountId, RolePartType.Mount);
             motionRefreshRequired = true;
         }
 
@@ -107,15 +110,129 @@ public sealed class PlayerComponent : DrawableGameComponent
             _ => RoleActionType.StandBy
         };
 
-        ulong motionKey = _role.SetAction(action);
-        string? motionPath = _gameData.ResolveMotion(motionKey);
+        ChangeMotion(action);        
+    }
 
-        if (!string.IsNullOrEmpty(motionPath) && _assetLoader != null)
+    private void ChangeMotion(RoleActionType action)
+    {
+        uint look = _currentAppearance?.Look ?? 0;
+        uint actionValue = (uint)action;
+        uint rWeaponId = _currentAppearance?.RWeaponId ?? 0;
+        uint lWeaponId = _currentAppearance?.LWeaponId ?? 0;
+        uint rawMountId = _currentAppearance?.MountId ?? 0;
+
+        uint mountId = ComputeMountId(rawMountId);
+        uint weaponId = ComputeWeaponId(rWeaponId, lWeaponId);
+
+        var motionPath = ResolveMotionWithFallback(mountId, look, weaponId, actionValue);
+        if (string.IsNullOrEmpty(motionPath) || _assetLoader == null)
+            return;
+
+        using var stream = _assetLoader.LoadFile(motionPath);
+        _role?.ChangeMotion(stream, "Body");
+        
+        var mountmotionPath = _gameData.ResolveMountMotion(rawMountId, (int)actionValue);
+        if (!string.IsNullOrEmpty(mountmotionPath) && _assetLoader != null)
         {
-            using var stream = _assetLoader.LoadFile(motionPath);
-            _role.ChangeMotion(stream, "BODY");
-            _role.Calculate(); // Snap bones to frame 0 immediately
+            using var stream2 = _assetLoader.LoadFile(mountmotionPath);
+            _role?.ChangeMotion(stream2, "Mount");
         }
+        _role?.Calculate();
+    }
+
+    // Mount component of the key. Raw mount ids encode a type group in their
+    // digits; we only need that group (divide by 10_000, mod 100), scaled
+    // into the key's mount slot (x1000). No mount -> 0.
+    private static uint ComputeMountId(uint rawMountId)
+    {
+        if (rawMountId == 0)
+            return 0;
+
+        return ((rawMountId / 10_000) % 100) * 1000;
+    }
+
+    // Weapon component of the key, derived from equipped right/left hand
+    // item ids. These rules mirror the original item-id -> motion category
+    // mapping; treat the magic numbers as fixed unless the item schema changes.
+    private static uint ComputeWeaponId(uint rWeaponId, uint lWeaponId)
+    {
+        bool hasRight = rWeaponId != 0;
+        bool hasLeft = lWeaponId != 0;
+
+        if (!hasRight && !hasLeft)
+            return 0;
+
+        // Single or two-handed weapon, right hand only.
+        if (hasRight && !hasLeft)
+            return (rWeaponId % 1_000_000) / 1000;
+
+        // Off-hand item only (shield/arrows), no right-hand weapon.
+        if (!hasRight && hasLeft)
+        {
+            var category = (lWeaponId % 1_000_000) / 1000;
+            return category == 50 ? 500u : 741u; // 50 = arrow, otherwise generic off-hand
+        }
+
+        // Both hands occupied: dual wield, weapon + shield, or bow.
+        uint weaponId;
+        if (((rWeaponId % 1_000_000) / 100_000) == 9) // shield in right-hand slot
+        {
+            weaponId = 700 + ((rWeaponId % 1_000_000) / 10_000);
+        }
+        else if (((lWeaponId % 1_000_000) / 100_000) == 4) // paired single-hand weapons
+        {
+            weaponId = 600
+                + ((rWeaponId % 100_000) / 10_000) * 10
+                + ((lWeaponId % 100_000) / 10_000);
+        }
+        else
+        {
+            weaponId = (rWeaponId % 1_000_000) / 1000;
+        }
+
+        if (rWeaponId / 1000 == 500) // bow overrides everything above
+            weaponId = 500;
+
+        return weaponId;
+    }
+
+    // Packs [mount][look][weapon][action] into fixed-width decimal slots.
+    // E.g. weaponId 41 * 10_000 = 410000; combined with standby (action 100)
+    // gives a final key of 410100.
+    private static ulong BuildMotionKey(uint mountId, uint look, uint weaponId, uint action)
+        => mountId * 10_000_000UL
+         + look * 10_000_000UL
+         + weaponId * 10_000UL
+         + action;
+
+    // Tries progressively less specific keys until one resolves to a real
+    // motion file. Order matters: most specific first, falling back through
+    // weapon then mount then action, in that priority.
+    private string ResolveMotionWithFallback(uint mountId, uint look, uint weaponId, uint action)
+    {
+        uint genericMount = mountId > 0 ? 1000u : 0u;
+
+        var attempts = new (uint mount, uint weapon, uint action)[]
+        {
+        (mountId,       weaponId, action), // 1. exact match
+        (genericMount,  weaponId, action), // 2. generic mount category
+        (mountId,       0,        action), // 3. exact mount, no weapon
+        (genericMount,  0,        action), // 4. generic mount, no weapon
+        (0,             weaponId, action), // 5. no mount
+        (0,             weaponId, 100),    // 6. no mount, generic "standby" action        
+        (0,             0,        action), // 7. no mount, no weapon
+        (0,             0,        100),    // 8. no mount, no weapon, generic action
+        };
+
+        foreach (var (mount, weapon, act) in attempts)
+        {
+            var motionkey = BuildMotionKey(mount, look, weapon, act);
+            var path = _gameData.ResolveMotion(motionkey);
+            if (!string.IsNullOrEmpty(path))
+                return path;
+        }
+
+        return null;
     }
 
     // ── Game Loop Updates (RESTORED INPUT AND CAMERA LOGIC!) ──────────────
@@ -380,4 +497,5 @@ public sealed class PlayerComponent : DrawableGameComponent
             _ => Texture2D.FromStream(GraphicsDevice, stream)
         };
     }
+
 }

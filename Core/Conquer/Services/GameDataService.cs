@@ -159,20 +159,16 @@ public class GameDataService : IGameDataService
 
     public string? ResolveMountMotion(ulong mountId, int actionType)
     {
-        mountId = (mountId / 10) * 10;
+        var mount = (mountId / 10_000) * 10_000_000;
 
-        ulong key = mountId * 1000 + (ulong)actionType;
+        ulong key = mount + (ulong)actionType;
         if (MountMotionMap.TryGetValue(key, out var p1)) return p1;
 
-        key = mountId * 1000 + 999;
+        key = mount + 999;
         if (MountMotionMap.TryGetValue(key, out var p2)) return p2;
 
-        ulong categoryId = (mountId / 1000) * 1000 + 999;
-        key = categoryId * 1000 + (ulong)actionType;
+        key = mount + 100;
         if (MountMotionMap.TryGetValue(key, out var p3)) return p3;
-
-        key = categoryId * 1000 + 999;
-        if (MountMotionMap.TryGetValue(key, out var p4)) return p4;
 
         return null;
     }

@@ -18,102 +18,9 @@ public sealed class C3Role : IDisposable
     public C3RolePart? Pelvis { get; set; }
     public C3RolePart? Spirit { get; set; }
 
-    // ── Motion & Look State ───────────────────────────────────────────────
-    public uint BaseLookId { get; set; } = 1;
-    public RoleActionType CurrentBaseAction { get; private set; } = (RoleActionType)100; // Default: StandBy
-
-    // Fires when equipment changes and a new motion key is required
-    public event Action<ulong>? OnMotionKeyChanged;
-
     // ── Frame state (delegated to Body) ───────────────────────────────────
     public int MaxFrameCount => Body?.MaxFrameCount ?? 0;
     public int CurrentFrame => Body?.CurrentFrame ?? 0;
-
-    // ── Motion Calculation Pipeline ───────────────────────────────────────
-    public ulong SetAction(RoleActionType action)
-    {
-        CurrentBaseAction = action;
-        ulong newMotionKey = CalculateMotionKey();
-        OnMotionKeyChanged?.Invoke(newMotionKey);
-        return newMotionKey;
-    }
-
-    /// <summary>
-    /// Call this to play a specific base action (e.g. Walk, Run, StandBy).
-    /// It automatically calculates the final key considering Mounts/Weapons.
-    /// </summary>
-    public void PlayAction(RoleActionType action)
-    {
-        CurrentBaseAction = action;
-        UpdateMotionState();
-    }
-
-    private void UpdateMotionState()
-    {
-        ulong newMotionKey = CalculateMotionKey();
-        OnMotionKeyChanged?.Invoke(newMotionKey);
-    }
-
-    public ulong CalculateMotionKey()
-    {
-        uint look = BaseLookId;
-        uint actionValue = (uint)CurrentBaseAction;
-
-        // 1. Mount modifies the Look ID (Standard logic: +1000 to Look)
-        // Normal: 1 * 10m -> 10_000_000
-        // Mounted: 1001 * 10m -> 10_010_000_000
-        if (Mount != null)
-        {
-            var mountid = (uint)((Mount.RolePartId / 10_000) % 100) * 1000;
-            if (look < 1000) look += 1000;
-        }
-
-        // 2. Weapon modifies the Action ID (Adds weapon's predefined action offset)
-        // Standby = 100. Weapon Offset = 410000. Final = 410100.
-        uint Weaponid = 0;
-        if (RWeapon != null && LWeapon == null)  // single or two hand weapon
-        {
-            var idType = RWeapon.RolePartId;
-            Weaponid = (idType % 1000000) / 1000;
-        }
-        if (RWeapon == null && LWeapon != null)  // shield only
-        {
-            var idType = LWeapon.RolePartId;
-            Weaponid = (idType % 1000000) / 1000;
-            if (Weaponid == 50)//arrow
-                Weaponid = 500; 
-            else
-                Weaponid = 741;
-        }
-        if (RWeapon != null && LWeapon != null)   // two weapon
-        {
-            if (((RWeapon.RolePartId % 1000000) / 100000) == 9)        // shield
-            {
-                var idTypeR = RWeapon.RolePartId;
-                var idTypeL = RWeapon.RolePartId;
-                Weaponid = 7 * 100 + ((idTypeR % 1000000) / 10000);
-            }
-            else if (((LWeapon.RolePartId % 1000000) / 100000) == 4)   // single hand weapon
-            {
-                var idTypeR = RWeapon.RolePartId;
-                var idTypeL = LWeapon.RolePartId;
-                Weaponid = 6 * 100 + ((idTypeR % 100000) / 10000) * 10 + ((idTypeL % 100000) / 10000);
-            }
-            else
-            {
-                var idType = RWeapon.RolePartId;
-                Weaponid = (idType % 1000000) / 1000;
-            }
-            if (RWeapon.RolePartId / 1000 == 500) // bow
-            {
-                Weaponid = 500;
-            }
-            
-        }
-        actionValue += Weaponid * 10000;
-        // 3. Combine using the requested formula
-        return (ulong)(look * 10_000_000L + actionValue);
-    }
 
     // ── Per-frame update ──────────────────────────────────────────────────
     public void AdvanceFrame(int step)
@@ -154,9 +61,9 @@ public sealed class C3Role : IDisposable
     public void UploadAllVertices()
     {
         foreach (var p in AllParts()) p.UploadVertices();
-    }
+    }    
 
-    public void ChangeMotion(Stream stream, string partname = "BODY")
+    public void ChangeMotion(Stream stream, string partname ="BODY")
     {
         var part = GetSlot(partname);
         if (part == null) return;
@@ -243,9 +150,6 @@ public sealed class C3Role : IDisposable
             case "PELVIS": Pelvis = part; break;
             case "SPIRIT": Spirit = part; break;
         }
-
-        // Trigger motion refresh when equipment changes
-        UpdateMotionState();
     }
 
     public void ClearSlot(string partname)
@@ -268,9 +172,6 @@ public sealed class C3Role : IDisposable
             case "PELVIS": Pelvis = null; break;
             case "SPIRIT": Spirit = null; break;
         }
-
-        // Trigger motion refresh when equipment drops
-        UpdateMotionState();
     }
 
     // ── Socket binding ────────────────────────────────────────────────────

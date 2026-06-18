@@ -27,12 +27,12 @@ public enum MovementState { Idle, Walking, Running, Jumping }
 /// </summary>
 public sealed class PlayerEntity : IRoleAppearance
 {
-    public uint Look { get; set; } = 1; // Male
-    public uint ArmorId { get; set; } = 0; // Example Armor
-    public uint ArmetId { get; set; } = 0;
-    public uint RWeaponId { get; set; } = 601009; // Example Blade
-    public uint LWeaponId { get; set; } = 601009;
-    public uint MountId { get; set; } = 0;
+    public uint Look { get; set; } = 1; // Small Female
+    public uint ArmorId { get; set; } = 181350; // DarkWizard
+    public uint ArmetId { get; set; } = 0;//1119980; //Hair
+    public uint RWeaponId { get; set; } = 601439; //HanzoKatana
+    public uint LWeaponId { get; set; } = 601439; //HanzoKatana
+    public uint MountId { get; set; } = 8010000; //Horse
 
     // ── Stats ─────────────────────────────────────────────────────────────────
     public string Name { get; } = "Hero";

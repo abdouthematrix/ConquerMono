@@ -148,7 +148,7 @@ public static class DbcReader
         // Entry table: [uint32 id | uint32 pathOffset]  per entry
         // Path data follows the entire entry table.
         long tableStart = s.Position;
-        const int entryFixed = 4 + 4; // id + offset = 8 bytes (no padding for SMALL)
+        //const int entryFixed = 4 + 4; // id + offset = 8 bytes (no padding for SMALL)
 
         var ids = new uint[amount];
         var offsets = new uint[amount];

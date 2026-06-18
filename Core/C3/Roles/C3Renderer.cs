@@ -105,13 +105,6 @@ public sealed class C3Renderer : IDisposable
         _role.UpdateShapes();
         _role.UploadAllVertices();
     }
-
-    public ulong SetAction(RoleActionType actionType)
-    {
-        if (_role == null) return 0;
-        return _role.SetAction(actionType);
-    }
-
     // ── Update ────────────────────────────────────────────────────────────
 
     /// <summary>
