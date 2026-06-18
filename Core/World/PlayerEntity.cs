@@ -1,38 +1,43 @@
+using System;
+using Microsoft.Xna.Framework;
+
 namespace ConquerMono.World;
 
 // ── Movement state ────────────────────────────────────────────────────────────
 
 public enum MovementState { Idle, Walking, Running, Jumping }
 
+// ── Conquer Discrete 8-Way Directions ──────────────────────────────────────────
+
+public enum ConquerAngle : byte
+{
+    SouthWest = 0,
+    West = 1,
+    NorthWest = 2,
+    North = 3,
+    NorthEast = 4,
+    East = 5,
+    SouthEast = 6,
+    South = 7
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// <summary>
-/// Player state and movement in cell space.
-///
-/// Jump arc
-/// ────────
-/// Ported from Role.cpp :: GetJumpHeight() and GetJumpFrameInterval().
-///
-/// Peak altitude (in cell units):
-///   peak = max(DEFAULT_JUMP_HEIGHT, distance / 3) + 0.2
-///
-/// Vertical arc (two-phase sine, matching original):
-///   Ascending  (current → peak):  sin(π × distToNow  / distToHighest / 2)
-///   Descending (peak   → end):    sin(π × distToNow  / distToEnd     / 2)
-///
-/// Jump duration scales with target distance (Role.cpp :: GetJumpFrameInterval):
-///   duration = max(BASE_JUMP_DURATION, BASE_JUMP_DURATION × distance / SCALE_DIST)
-///
-/// JumpHeight is exposed so PlayerComponent can apply it as a Y bob offset.
+/// Player state and movement in cell space conforming to original Conquer Online 8-way rules.
 /// </summary>
 public sealed class PlayerEntity : IRoleAppearance
 {
     public uint Look { get; set; } = 1; // Small Female
     public uint ArmorId { get; set; } = 181350; // DarkWizard
-    public uint ArmetId { get; set; } = 0;//1119980; //Hair
-    public uint RWeaponId { get; set; } = 601439; //HanzoKatana
-    public uint LWeaponId { get; set; } = 601439; //HanzoKatana
-    public uint MountId { get; set; } = 8010000; //Horse
+    public uint ArmetId { get; set; } = 0; // Hair
+    public uint RWeaponId { get; set; } = 601439; // HanzoKatana
+    public uint LWeaponId { get; set; } = 601439; // HanzoKatana
+    public uint MountId { get; set; } = 8010000; // Horse
+
+    // ── Conquer Grid Direction Arrays ─────────────────────────────────────────
+    public static readonly sbyte[] XDir = new sbyte[] { 0, -1, -1, -1, 0, 1, 1, 1 };
+    public static readonly sbyte[] YDir = new sbyte[] { 1, 1, 0, -1, -1, -1, 0, 1 };
 
     // ── Stats ─────────────────────────────────────────────────────────────────
     public string Name { get; } = "Hero";
@@ -44,8 +49,17 @@ public sealed class PlayerEntity : IRoleAppearance
 
     // ── Position & orientation ────────────────────────────────────────────────
     public Vector2 CellPosition { get; private set; }
-    public float FacingAngle { get; private set; } = MathF.PI / 4f;
-    public Vector2 FacingDir => new(MathF.Cos(FacingAngle), MathF.Sin(FacingAngle));
+
+    /// <summary>
+    /// Discrete Conquer Online grid direction (The absolute source of truth).
+    /// </summary>
+    public ConquerAngle FacingDir { get; set; } = ConquerAngle.South;
+
+    /// <summary>
+    /// Calculated 3D radian value. Initialized dynamically from FacingDir.
+    /// </summary>
+    public float FacingAngle { get; private set; }
+
     public float WalkPhase { get; private set; }
 
     // ── State ─────────────────────────────────────────────────────────────────
@@ -56,32 +70,23 @@ public sealed class PlayerEntity : IRoleAppearance
     // ── Jump state ────────────────────────────────────────────────────────────
     private float _jumpTimer;
     private float _jumpDuration;
-    private Vector2 _jumpStart;     // cell position when jump began
-    private Vector2 _jumpEnd;       // cell target (may equal start for Space-jump)
-    private Vector2 _jumpPeak;      // midpoint in cell space
-    private float _jumpPeakAlt;   // peak altitude in cell units
-    private float _jumpStartAlt;  // ground altitude at start (0 in flat maps)
-    private float _jumpEndAlt;    // ground altitude at end   (0 in flat maps)
+    private Vector2 _jumpStart;
+    private Vector2 _jumpEnd;
+    private Vector2 _jumpPeak;
+    private float _jumpPeakAlt;
+    private float _jumpStartAlt;
+    private float _jumpEndAlt;
 
-    /// <summary>
-    /// Current vertical offset in cell units (positive = up).
-    /// Computed each frame from the Role.cpp two-phase sine formula.
-    /// PlayerComponent converts this to world-space bob via PlayerModelScale.
-    /// </summary>
     public float JumpHeight { get; private set; }
 
     // ── Jump constants (matching Role.cpp) ────────────────────────────────────
-    // _DEFAULT_JUMP_HEIGH = 120 world units.
-    // CO world units ≈ cell × 32 pixels; we work in cell space (÷ 32).
     private const float DEFAULT_JUMP_HEIGHT = 120f / 32f;   // ≈ 3.75 cells
-    private const float BASE_JUMP_DURATION = 0.6f;         // seconds at distance 0
-    // Role.cpp: dwInterval × dbDicAll / 300 + 1  (dbDicAll in world-px, ÷ 32 → cells × 32 / 300)
-    // Simplified: duration = BASE + BASE × cellDistance / SCALE_CELLS
+    private const float BASE_JUMP_DURATION = 0.6f;
     private const float SCALE_DIST = 300f / 32f;            // ≈ 9.375 cells
 
     // ── Constants ─────────────────────────────────────────────────────────────
     private const float ARRIVE_RADIUS = 0.15f;
-    private const float ROTATE_SPEED = 12f;
+    private const float ROTATE_SPEED = 18f; // Slightly increased for snappy alignment
     private const float DEFAULT_WALK = 5f;
     private const float DEFAULT_RUN = 10f;
 
@@ -98,7 +103,6 @@ public sealed class PlayerEntity : IRoleAppearance
     // ── Map reference ─────────────────────────────────────────────────────────
     private MapData? _map;
 
-    // ── Legacy progress (kept for PlayerComponent compatibility) ──────────────
     public float JumpProgress => _jumpDuration > 0 ? _jumpTimer / _jumpDuration : 0f;
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -116,11 +120,6 @@ public sealed class PlayerEntity : IRoleAppearance
 
     public void ClearTarget() => _target = null;
 
-    /// <summary>
-    /// Trigger a jump toward <paramref name="overrideTarget"/> (or in-place if null).
-    /// Duration and arc height are computed from the distance, matching Role.cpp.
-    /// <paramref name="baseDuration"/> is the clip's natural length at distance 0.
-    /// </summary>
     public void Jump(float baseDuration = BASE_JUMP_DURATION, Vector2? overrideTarget = null)
     {
         if (State == MovementState.Jumping) return;
@@ -130,28 +129,29 @@ public sealed class PlayerEntity : IRoleAppearance
 
         float dist = Vector2.Distance(_jumpStart, _jumpEnd);
 
-        // Scale duration with distance (Role.cpp :: GetJumpFrameInterval)
-        //   dwInterval × dbDicAll / 300 + 1  →  baseDuration × dist / SCALE_DIST
         _jumpDuration = MathF.Max(baseDuration, baseDuration + baseDuration * dist / SCALE_DIST);
 
-        // Peak altitude scales with distance  (Role.cpp :: GetJumpHeight)
-        //   nHightestAltitude = nBeginAlt + sqrt(distWorldPx) / 3 + 20
-        // In cell units: peak = startAlt + sqrt(dist×32) / 3 / 32 + 20/32
-        _jumpStartAlt = 0f;  // flat map; terrain height not tracked in cell space
+        _jumpStartAlt = 0f;
         _jumpEndAlt = 0f;
         _jumpPeakAlt = _jumpStartAlt
-                      + MathF.Max(DEFAULT_JUMP_HEIGHT,
-                                  MathF.Sqrt(dist * 32f) / 3f / 32f)
+                      + MathF.Max(DEFAULT_JUMP_HEIGHT, MathF.Sqrt(dist * 32f) / 3f / 32f)
                       + 20f / 32f;
 
-        // Peak is at the midpoint of the path (Role.cpp sets it to (begin+end)/2)
         _jumpPeak = (_jumpStart + _jumpEnd) * 0.5f;
 
         State = MovementState.Jumping;
         _jumpTimer = 0f;
         JumpHeight = 0f;
         WalkPhase = 0f;
-        // Keep _target so movement continues mid-air
+    }
+
+    /// <summary>
+    /// Instantly forces the entity to face a specific ConquerAngle, bypassing smooth rotation.
+    /// </summary>
+    public void FaceInstantly(ConquerAngle newDirection)
+    {
+        FacingDir = newDirection;
+        FacingAngle = GetFacingAngleFromConquerAngle(newDirection);
     }
 
     // ── Update ────────────────────────────────────────────────────────────────
@@ -162,15 +162,20 @@ public sealed class PlayerEntity : IRoleAppearance
         _walkSpeed = walkSpeed;
         _runSpeed = runSpeed;
 
-        // ── Jumping ───────────────────────────────────────────────────────────
+        // ── 1. Global Angle Synchronization ───────────────────────────────────
+        // The discrete logical FacingDir (ConquerAngle) is the absolute source of truth.
+        // We always smoothly rotate the visual 3D model to match it, even when standing still.
+        float desiredAngle = GetFacingAngleFromConquerAngle(FacingDir);
+        FacingAngle = SmoothAngle(FacingAngle, desiredAngle, ROTATE_SPEED * dt);
+
+        // ── 2. Jumping ────────────────────────────────────────────────────────
         if (State == MovementState.Jumping)
         {
             _jumpTimer += dt;
             WalkPhase = JumpProgress * MathF.PI;
-
-            // Compute vertical height using Role.cpp two-phase sine
             JumpHeight = ComputeJumpHeight();
 
+            // End of jump
             if (_jumpTimer >= _jumpDuration)
             {
                 State = MovementState.Idle;
@@ -178,10 +183,12 @@ public sealed class PlayerEntity : IRoleAppearance
                 WalkPhase = 0f;
             }
 
-            // Move during air phase
+            // Determine mid-air drift direction
             Vector2 airDir = Vector2.Zero;
             if (keyboardDir != Vector2.Zero)
+            {
                 airDir = Vector2.Normalize(keyboardDir);
+            }
             else if (_target.HasValue)
             {
                 Vector2 toTarget = _target.Value - CellPosition;
@@ -190,18 +197,25 @@ public sealed class PlayerEntity : IRoleAppearance
                 else airDir = toTarget / dist;
             }
 
+            // Apply mid-air drift
             if (airDir != Vector2.Zero)
             {
-                float desired = MathF.Atan2(airDir.Y, airDir.X);
-                FacingAngle = SmoothAngle(FacingAngle, desired, ROTATE_SPEED * dt);
-                TryMove(airDir * _walkSpeed * dt);
+                // Update the logical direction while mid-air
+                FacingDir = GetConquerAngleFromVector(airDir);
+
+                // Snap movement vector to discrete Conquer grid vectors
+                Vector2 discreteMove = new Vector2(XDir[(int)FacingDir], YDir[(int)FacingDir]);
+                if (discreteMove != Vector2.Zero) discreteMove.Normalize();
+
+                TryMove(discreteMove * _walkSpeed * dt);
             }
-            return;
+            return; // Skip walking logic while airborne
         }
 
-        // ── Walk / Run ────────────────────────────────────────────────────────
+        // ── 3. Walk / Run ─────────────────────────────────────────────────────
         Vector2 moveDir = Vector2.Zero;
 
+        // Determine intended movement direction (Keyboard overrides Mouse)
         if (keyboardDir != Vector2.Zero)
         {
             _target = null;
@@ -211,17 +225,34 @@ public sealed class PlayerEntity : IRoleAppearance
         {
             Vector2 toTarget = _target.Value - CellPosition;
             float dist = toTarget.Length();
-            if (dist <= ARRIVE_RADIUS) { _target = null; running = false; }
-            else { moveDir = toTarget / dist; running = _targetIsRun; }
+            if (dist <= ARRIVE_RADIUS)
+            {
+                _target = null;
+                running = false;
+            }
+            else
+            {
+                moveDir = toTarget / dist;
+                running = _targetIsRun;
+            }
         }
 
+        // Apply ground movement
         if (moveDir != Vector2.Zero)
         {
             State = running ? MovementState.Running : MovementState.Walking;
-            float desired = MathF.Atan2(moveDir.Y, moveDir.X);
-            FacingAngle = SmoothAngle(FacingAngle, desired, ROTATE_SPEED * dt);
+
+            // Set the logical discrete direction. The global sync (Phase 1) handles the 3D rotation.
+            FacingDir = GetConquerAngleFromVector(moveDir);
+
+            // Advance walk/run animation phase
             WalkPhase = (WalkPhase + dt * MathF.Tau * 2.2f) % MathF.Tau;
-            TryMove(moveDir * (running ? _runSpeed : _walkSpeed) * dt);
+
+            // Enforce discrete structural movement matching the 8-way step arrays
+            Vector2 discreteMove = new Vector2(XDir[(int)FacingDir], YDir[(int)FacingDir]);
+            if (discreteMove != Vector2.Zero) discreteMove.Normalize();
+
+            TryMove(discreteMove * (running ? _runSpeed : _walkSpeed) * dt);
         }
         else
         {
@@ -229,27 +260,13 @@ public sealed class PlayerEntity : IRoleAppearance
         }
     }
 
-    // ── Jump arc (Role.cpp :: GetJumpHeight) ──────────────────────────────────
-
-    /// <summary>
-    /// Returns the current vertical offset in cell units using the two-phase
-    /// sine formula from Role.cpp.
-    ///
-    /// Ascending  half (begin → peak):
-    ///   height = startAlt + (peakAlt - startAlt) × sin(π × distNow / distToPeak / 2)
-    ///
-    /// Descending half (peak → end):
-    ///   height = endAlt   + (peakAlt - endAlt)   × sin(π × distNow / distToEnd  / 2)
-    /// </summary>
     private float ComputeJumpHeight()
     {
-        // World distances from current position
         float distFromStart = Vector2.Distance(CellPosition, _jumpStart);
         float distFromEnd = Vector2.Distance(CellPosition, _jumpEnd);
         float distToPeak = Vector2.Distance(_jumpStart, _jumpPeak);
         float distFromPeak = Vector2.Distance(_jumpPeak, _jumpEnd);
 
-        // Ascending if we are closer to start than to peak
         bool ascending = Vector2.DistanceSquared(CellPosition, _jumpStart)
                        < Vector2.DistanceSquared(CellPosition, _jumpPeak);
 
@@ -269,7 +286,45 @@ public sealed class PlayerEntity : IRoleAppearance
         }
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+    // ── Conquer Coordinate Transformation Helpers ───────────────────────────
+
+    /// <summary>
+    /// Calculates the 8-way discrete Conquer direction between two coordinates.
+    /// </summary>
+    public static int ConquerDirection(int x1, int y1, int x2, int y2)
+    {
+        double angle = Math.Atan2(y2 - y1, x2 - x1);
+        angle -= Math.PI / 2;
+
+        if (angle < 0) angle += 2 * Math.PI;
+
+        angle *= 8 / (2 * Math.PI);
+        return (int)angle % 8; // % 8 bounds guard handles rare exact 2*PI rounding cases safely
+    }
+
+    /// <summary>
+    /// Maps continuous input directional vectors directly to discrete 8-way Conquer indices.
+    /// </summary>
+    private ConquerAngle GetConquerAngleFromVector(Vector2 dir)
+    {
+        if (dir == Vector2.Zero) return FacingDir;
+
+        double angle = Math.Atan2(dir.Y, dir.X);
+        angle -= Math.PI / 2;
+
+        if (angle < 0) angle += 2 * Math.PI;
+
+        angle *= 8 / (2 * Math.PI);
+        return (ConquerAngle)((int)angle % 8);
+    }
+
+    /// <summary>
+    /// Translates a discrete Conquer direction index into exact 3D world space radians.
+    /// </summary>
+    public static float GetFacingAngleFromConquerAngle(ConquerAngle dir)
+    {
+        return ((int)dir + 2) % 8 * (MathF.PI / 4f);
+    }
 
     private void TryMove(Vector2 delta)
     {

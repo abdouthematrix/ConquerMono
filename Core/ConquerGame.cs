@@ -72,7 +72,6 @@ public sealed class ConquerGame : Game
             var directory = @"C:\Users\AbdouMatrix\Downloads\CO\6090";
             Settings.ConquerDirectory = directory;
             Settings.DefaultZoom = 0.5f;
-            Settings.PlayerModelScale = 0.025f;
             Settings.PlayerWalkSpeed = 5f;
             Settings.PlayerRunSpeed = 10f;
             Settings.Save();

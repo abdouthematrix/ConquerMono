@@ -16,6 +16,8 @@ public sealed class PlayerComponent : DrawableGameComponent
     private readonly double _secondsPerFrame = 1.0 / 15.0; // Conquer standard animation speed
     private Texture2D _shadow = null!;
 
+    private SpriteFont _pixelFont = null!;
+
     public PlayerComponent(ConquerGame game, IGameDataService gameData, TqPackageReader assetLoader) : base(game)
     {
         _game = game;
@@ -30,6 +32,8 @@ public sealed class PlayerComponent : DrawableGameComponent
         _role = new C3Role();
         _role.Initialize(GraphicsDevice);
         BuildShadow();
+
+        _pixelFont = _game.Content.Load<SpriteFont>("Fonts/PixelFont");
     }
 
     // ── Equipment Update ──────────────────────────────────────────────────
@@ -268,12 +272,32 @@ public sealed class PlayerComponent : DrawableGameComponent
             player.SetTarget(viewer.Camera.ViewportToCell(input.MousePosition), run: shift);
         }
 
-        // 4. WASD / Arrows
+        // 4. WASD / Arrows (Mapped to Conquer's Isometric Grid)
         var dir = Vector2.Zero;
-        if (input.IsHeld(Keys.W) || input.IsHeld(Keys.Up)) dir.Y -= 1;
-        if (input.IsHeld(Keys.S) || input.IsHeld(Keys.Down)) dir.Y += 1;
-        if (input.IsHeld(Keys.A) || input.IsHeld(Keys.Left)) dir.X -= 1;
-        if (input.IsHeld(Keys.D) || input.IsHeld(Keys.Right)) dir.X += 1;
+        // W / Up -> Maps to Conquer North (Screen Up): X -1, Y -1
+        if (input.IsHeld(Keys.W) || input.IsHeld(Keys.Up))
+        {
+            dir.X -= 1;
+            dir.Y -= 1;
+        }
+        // S / Down -> Maps to Conquer South (Screen Down): X +1, Y +1
+        if (input.IsHeld(Keys.S) || input.IsHeld(Keys.Down))
+        {
+            dir.X += 1;
+            dir.Y += 1;
+        }
+        // A / Left -> Maps to Conquer West (Screen Left): X -1, Y +1
+        if (input.IsHeld(Keys.A) || input.IsHeld(Keys.Left))
+        {
+            dir.X -= 1;
+            dir.Y += 1;
+        }
+        // D / Right -> Maps to Conquer East (Screen Right): X +1, Y -1
+        if (input.IsHeld(Keys.D) || input.IsHeld(Keys.Right))
+        {
+            dir.X += 1;
+            dir.Y -= 1;
+        }
 
         player.Update(dir, shift, (float)gt.ElapsedGameTime.TotalSeconds, s.PlayerWalkSpeed, s.PlayerRunSpeed);
 
@@ -332,15 +356,17 @@ public sealed class PlayerComponent : DrawableGameComponent
         GraphicsDevice.Clear(ClearOptions.DepthBuffer, Color.Transparent, 1f, 0);
 
         float bob = player.State == MovementState.Jumping ? player.JumpHeight : 0f;
-        float scale = _game.Settings.PlayerModelScale;
+        float m_fScale = 0.025f;
 
         // 3. Bulletproof XNA Matrix Construction
-        var world = Matrix.CreateScale(scale);
+        var world = Matrix.CreateScale(
+            m_fScale - m_fScale * 0.2f,
+            m_fScale - m_fScale * 0.2f,
+            m_fScale - m_fScale * 0.3f);
 
         // C3Models are natively rotated by 90 on X upon load. We rotate by 180 on Y 
         // to face the camera correctly, then subtract the isometric facing angle.
-        world *= Matrix.CreateRotationY(MathHelper.ToRadians(180f));
-        world *= Matrix.CreateRotationY(-(player.FacingAngle - MathF.PI / 4f));
+        world *= Matrix.CreateRotationY(-(player.FacingAngle - MathF.PI / 2f));
 
         // Translate final object into isometric cell space
         world *= Matrix.CreateTranslation(player.CellPosition.X, bob, player.CellPosition.Y);
@@ -355,6 +381,47 @@ public sealed class PlayerComponent : DrawableGameComponent
         // 5. Force socket synchronization and render
         _role.Calculate();
         _role.Draw(GraphicsDevice, cam.ViewMatrix, cam.ProjectionMatrix);
+
+        GraphicsDevice.BlendState = BlendState.AlphaBlend;
+        DrawPlayerName(player, screenPos, cam.Zoom);
+    }
+
+    private void DrawPlayerName(PlayerEntity player, Vector2 screenBasePos, float zoom)
+    {
+        if (_pixelFont == null || string.IsNullOrEmpty(player.Name)) return;
+
+        // Note: The C++ client dynamically applies _COLOR_RED or _COLOR_BLACK based on PK status.
+        // You can expand this logic later if you add PK flags to PlayerEntity.
+        Color nameColor = Color.White;
+        Color shadowColor = new Color(170, 170, 170); // Equivalent to the 0xaaaaaa fallback in C++
+
+        // Measure string to replicate C++: sizeFont.iWidth * iInfoLen / 2
+        Vector2 textSize = _pixelFont.MeasureString(player.Name);
+
+        // Base height offset (replicates OFFSET_NAMESHOW + sizeFont.iHeight * 2)
+        // You may need to tweak the 110f value depending on your C3 model's internal scaling
+        float baseHeightOffset = 110f * zoom;
+
+        // Add the jump bobbing height to the offset so the name follows the character mid-air
+        float jumpOffset = player.State == MovementState.Jumping ? (player.JumpHeight * 32f * zoom) : 0f;
+
+        // Calculate final text position (Centered X, Offset Y)
+        Vector2 textPos = new Vector2(
+            screenBasePos.X - (textSize.X / 2f),
+            screenBasePos.Y - baseHeightOffset - jumpOffset - textSize.Y
+        );
+
+        // CRITICAL: PointClamp ensures pixel fonts remain perfectly sharp with zero blur.
+        var sb = _game.SpriteBatch;
+        sb.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp);
+
+        // Replicate C++ shadow offset: posShow.x = nShowX + 1; posShow.y = nShowY + 1;
+        sb.DrawString(_pixelFont, player.Name, new Vector2(textPos.X + 1, textPos.Y + 1), shadowColor);
+
+        // Draw the main text: posShow.x = nShowX; posShow.y = nShowY;
+        sb.DrawString(_pixelFont, player.Name, textPos, nameColor);
+
+        sb.End();
     }
 
     private void BuildShadow()

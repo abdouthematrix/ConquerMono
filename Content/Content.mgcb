@@ -1,4 +1,6 @@
+
 #----------------------------- Global Properties ----------------------------#
+
 /outputDir:bin/$(Platform)
 /intermediateDir:obj/$(Platform)
 /platform:DesktopGL
@@ -8,7 +10,14 @@
 
 #-------------------------------- References --------------------------------#
 
+
 #---------------------------------- Content ---------------------------------#
-# All textures are loaded at runtime from Conquer Online WDF packages
-# (c3.wdf, data.wdf) via TqPackageReader / WdfPackageReader.
-# No content files need to be compiled by the pipeline.
+
+#begin Fonts/PixelFont.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/processorParam:PremultiplyAlpha=True
+/processorParam:TextureFormat=Compressed
+/processorParam:Version=3.8.5.0
+/build:Fonts/PixelFont.spritefont
+

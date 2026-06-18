@@ -9,9 +9,7 @@ public sealed class GameSettings
 {
     // ── Persisted fields ──────────────────────────────────────────────────────
     public string ConquerDirectory { get; set; } = string.Empty;
-    public float DefaultZoom { get; set; }
-    /// <summary>Uniform scale applied to the player's World matrix. Default 1.0.</summary>
-    public float PlayerModelScale { get; set; }
+    public float DefaultZoom { get; set; }    
     // ── Movement tuning ────────────────────────────────────────────────────
     /// <summary>Walk speed in cells per second.</summary>
     public float PlayerWalkSpeed { get; set; } 
